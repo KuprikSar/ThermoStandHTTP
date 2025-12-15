@@ -1,0 +1,422 @@
+Command: C:\Users\UserNEW\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe C:\Users\UserNEW\esp\v5.5.1\esp-idf\tools/idf_monitor.py -p COM8 -b 115200 --toolchain-prefix xtensa-esp32s3-elf- --target esp32s3 --revision 0 D:\ESP32_PROJ\HTTP_SERV\simple\build\simple.elf D:\ESP32_PROJ\HTTP_SERV\simple\build\bootloader\bootloader.elf --force-color -m 'C:\Users\UserNEW\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe' 'C:\Users\UserNEW\esp\v5.5.1\esp-idf\tools\idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x158c
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2f34
+entry 0x403c8924
+[0;32mI (24) boot: ESP-IDF v5.5.1 2nd stage bootloader[0m
+[0;32mI (25) boot: compile time Dec  1 2025 15:49:25[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (28) boot: efuse block revision: v1.3[0m
+[0;32mI (31) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (35) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (39) boot.esp32s3: SPI Flash Size : 2MB[0m
+[0;32mI (43) boot: Enabling RNG early entropy source...[0m
+[0;32mI (47) boot: Partition Table:[0m
+[0;32mI (50) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (63) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (69) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (76) boot: End of partition table[0m
+[0;32mI (79) esp_image: segment 0: paddr=00010020 vaddr=3c0a0020 size=1ea20h (125472) map[0m
+[0;32mI (108) esp_image: segment 1: paddr=0002ea48 vaddr=3fc9c400 size=015d0h (  5584) load[0m
+[0;32mI (110) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=91c98h (597144) map[0m
+[0;32mI (217) esp_image: segment 3: paddr=000c1cc0 vaddr=3fc9d9d0 size=0351ch ( 13596) load[0m
+[0;32mI (221) esp_image: segment 4: paddr=000c51e4 vaddr=40374000 size=183bch ( 99260) load[0m
+[0;32mI (243) esp_image: segment 5: paddr=000dd5a8 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (253) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (253) boot: Disabling RNG early entropy source...[0m
+[0;32mI (263) cpu_start: Multicore app[0m
+[0;32mI (272) cpu_start: Pro cpu start user code[0m
+[0;32mI (272) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (272) app_init: Application information:[0m
+[0;32mI (272) app_init: Project name:     simple[0m
+[0;32mI (276) app_init: App version:      1[0m
+[0;32mI (279) app_init: Compile time:     Dec  4 2025 11:19:20[0m
+[0;32mI (284) app_init: ELF file SHA256:  093a80fff...[0m
+[0;32mI (289) app_init: ESP-IDF:          v5.5.1[0m
+[0;32mI (292) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (296) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (300) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (304) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (310) heap_init: At 3FCA4BE8 len 00044B28 (274 KiB): RAM[0m
+[0;32mI (316) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (321) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (326) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (332) spi_flash: detected chip: boya[0m
+[0;32mI (335) spi_flash: flash io: dio[0m
+[0;33mW (338) spi_flash: Detected size(16384k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (350) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (356) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (363) main_task: Started on CPU0[0m
+[0;32mI (383) main_task: Calling app_main()[0m
+[0;32mI (393) example_connect: Start example_connect.[0m
+[0;32mI (393) pp: pp rom version: e7ae62f[0m
+[0;32mI (393) net80211: net80211 rom version: e7ae62f[0m
+[0;32mI (403) wifi:wifi driver task: 3fceea14, prio:23, stack:6656, core=0[0m
+[0;32mI (403) wifi:wifi firmware version: 14da9b7[0m
+[0;32mI (403) wifi:wifi certification version: v7.0[0m
+[0;32mI (403) wifi:config NVS flash: enabled[0m
+[0;32mI (413) wifi:config nano formatting: disabled[0m
+[0;32mI (413) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (423) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (423) wifi:Init management short buffer num: 32[0m
+[0;32mI (433) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (433) wifi:Init static tx FG buffer num: 2[0m
+[0;32mI (433) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (443) wifi:Init static rx buffer num: 10[0m
+[0;32mI (443) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (453) wifi_init: rx ba win: 6[0m
+[0;32mI (453) wifi_init: accept mbox: 6[0m
+[0;32mI (453) wifi_init: tcpip mbox: 32[0m
+[0;32mI (453) wifi_init: udp mbox: 6[0m
+[0;32mI (463) wifi_init: tcp mbox: 6[0m
+[0;32mI (463) wifi_init: tcp tx win: 5760[0m
+[0;32mI (463) wifi_init: tcp rx win: 5760[0m
+[0;32mI (473) wifi_init: tcp mss: 1440[0m
+[0;32mI (473) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (473) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (483) phy_init: phy_version 701,f4f1da3a,Mar  3 2025,15:50:10[0m
+[0;32mI (523) wifi:mode : sta (dc:b4:d9:0b:34:c8)[0m
+[0;32mI (523) wifi:enable tsf[0m
+[0;32mI (523) example_connect: Connecting to TP-Link_877C...[0m
+[0;33mW (523) wifi:Password length matches WPA2 standards, authmode threshold changes from OPEN to WPA2[0m
+[0;32mI (533) example_connect: Waiting for IP(s)[0m
+[0;32mI (3023) wifi:new:<7,0>, old:<1,0>, ap:<255,255>, sta:<7,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (3023) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (3033) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (3043) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (3063) wifi:connected with TP-Link_877C, aid = 4, channel 7, BW20, bssid = 1c:61:b4:e6:87:7b[0m
+[0;32mI (3063) wifi:security: WPA2-PSK, phy: bgn, rssi: -36[0m
+[0;32mI (3063) wifi:pm start, type: 1[0m
+
+[0;32mI (3073) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (3083) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000[0m
+[0;32mI (3093) wifi:<ba-add>idx:0 (ifx:0, 1c:61:b4:e6:87:7b), tid:6, ssn:2, winSize:64[0m
+[0;32mI (3143) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (4103) esp_netif_handlers: example_netif_sta ip: 192.168.0.152, mask: 255.255.255.0, gw: 192.168.0.1[0m
+[0;32mI (4103) example_connect: Got IPv4 event: Interface "example_netif_sta" address: 192.168.0.152[0m
+[0;32mI (4393) example_connect: Got IPv6 event: Interface "example_netif_sta" address: fe80:0000:0000:0000:deb4:d9ff:fe0b:34c8, type: ESP_IP6_ADDR_IS_LINK_LOCAL[0m
+[0;32mI (4393) example_common: Connected to example_netif_sta[0m
+[0;32mI (4393) example_common: - IPv4 address: 192.168.0.152,[0m
+[0;32mI (4403) example_common: - IPv6 address: fe80:0000:0000:0000:deb4:d9ff:fe0b:34c8, type: ESP_IP6_ADDR_IS_LINK_LOCAL[0m
+[0;32mI (4413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (4413) example: Starting server on port: '80'[0m
+[0;32mI (4423) example: Registering URI handlers[0m
+[0;32mI (5413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (6413) example: PT100 CH1: 20.36 C[0m
+[0;32mI (7413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (8413) example: PT100 CH1: 20.36 C[0m
+[0;32mI (9413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (10413) example: PT100 CH1: 20.36 C[0m
+[0;32mI (11413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (12413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (13413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (14413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (15413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (16363) wifi:<ba-add>idx:1 (ifx:0, 1c:61:b4:e6:87:7b), tid:0, ssn:0, winSize:64[0m
+[0;32mI (16413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (16573) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (16583) example: Request headers lost[0m
+[0;32mI (17413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (17693) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (17693) example: Request headers lost[0m
+[0;32mI (18413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (18823) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (18823) example: Request headers lost[0m
+[0;32mI (19413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (19943) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (19953) example: Request headers lost[0m
+[0;32mI (20413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (21073) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (21073) example: Request headers lost[0m
+[0;32mI (21413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (22303) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (22303) example: Request headers lost[0m
+[0;32mI (22413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (23413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (23533) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (23533) example: Request headers lost[0m
+[0;32mI (24413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (24653) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (24663) example: Request headers lost[0m
+[0;32mI (25413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (25883) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (25893) example: Request headers lost[0m
+[0;32mI (26413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (27013) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (27013) example: Request headers lost[0m
+[0;32mI (27413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (28143) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (28143) example: Request headers lost[0m
+[0;32mI (28413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (29263) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (29273) example: Request headers lost[0m
+[0;32mI (29413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (30393) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (30393) example: Request headers lost[0m
+[0;32mI (30413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (31413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (31623) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (31623) example: Request headers lost[0m
+[0;32mI (32413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (32853) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (32853) example: Request headers lost[0m
+[0;32mI (33413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (34083) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (34083) example: Request headers lost[0m
+[0;32mI (34413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (35303) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (35313) example: Request headers lost[0m
+[0;32mI (35413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (36413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (36643) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (36643) example: Request headers lost[0m
+[0;32mI (37413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (38413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (39413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (40023) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (40023) example: Request headers lost[0m
+[0;32mI (40413) example: PT100 CH1: 23.98 C[0m
+[0;32mI (41143) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (41143) example: Request headers lost[0m
+[0;32mI (41413) example: PT100 CH1: 25.23 C[0m
+[0;32mI (42273) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (42273) example: Request headers lost[0m
+[0;32mI (42413) example: PT100 CH1: 25.90 C[0m
+[0;32mI (43393) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (43403) example: Request headers lost[0m
+[0;32mI (43413) example: PT100 CH1: 26.34 C[0m
+[0;32mI (44413) example: PT100 CH1: 26.65 C[0m
+[0;32mI (44523) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (44523) example: Request headers lost[0m
+[0;32mI (45413) example: PT100 CH1: 26.82 C[0m
+[0;32mI (45653) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (45653) example: Request headers lost[0m
+[0;32mI (46413) example: PT100 CH1: 26.95 C[0m
+[0;32mI (46773) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (46783) example: Request headers lost[0m
+[0;32mI (47413) example: PT100 CH1: 27.16 C[0m
+[0;32mI (47903) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (47903) example: Request headers lost[0m
+[0;32mI (48413) example: PT100 CH1: 27.29 C[0m
+[0;32mI (49033) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (49033) example: Request headers lost[0m
+[0;32mI (49413) example: PT100 CH1: 27.36 C[0m
+[0;32mI (50153) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (50163) example: Request headers lost[0m
+[0;32mI (50413) example: PT100 CH1: 27.46 C[0m
+[0;32mI (51283) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (51283) example: Request headers lost[0m
+[0;32mI (51413) example: PT100 CH1: 27.22 C[0m
+[0;32mI (52413) example: PT100 CH1: 26.34 C[0m
+[0;32mI (52413) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (52413) example: Request headers lost[0m
+[0;32mI (53413) example: PT100 CH1: 25.57 C[0m
+[0;32mI (53633) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (53643) example: Request headers lost[0m
+[0;32mI (54413) example: PT100 CH1: 24.89 C[0m
+[0;32mI (54863) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (54873) example: Request headers lost[0m
+[0;32mI (55413) example: PT100 CH1: 24.35 C[0m
+[0;32mI (56093) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (56103) example: Request headers lost[0m
+[0;32mI (56413) example: PT100 CH1: 23.81 C[0m
+[0;32mI (57323) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (57323) example: Request headers lost[0m
+[0;32mI (57413) example: PT100 CH1: 23.40 C[0m
+[0;32mI (58413) example: PT100 CH1: 23.03 C[0m
+[0;32mI (58453) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (58453) example: Request headers lost[0m
+[0;32mI (59413) example: PT100 CH1: 22.72 C[0m
+[0;32mI (59683) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (59683) example: Request headers lost[0m
+[0;32mI (60413) example: PT100 CH1: 22.45 C[0m
+[0;32mI (60803) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (60813) example: Request headers lost[0m
+[0;32mI (61413) example: PT100 CH1: 22.22 C[0m
+[0;32mI (62033) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (62033) example: Request headers lost[0m
+[0;32mI (62413) example: PT100 CH1: 22.01 C[0m
+[0;32mI (63163) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (63163) example: Request headers lost[0m
+[0;32mI (63413) example: PT100 CH1: 21.88 C[0m
+[0;32mI (64393) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (64393) example: Request headers lost[0m
+[0;32mI (64413) example: PT100 CH1: 21.74 C[0m
+[0;32mI (65413) example: PT100 CH1: 21.61 C[0m
+[0;32mI (65523) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (65523) example: Request headers lost[0m
+[0;32mI (66413) example: PT100 CH1: 21.47 C[0m
+[0;32mI (66743) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (66753) example: Request headers lost[0m
+[0;32mI (67413) example: PT100 CH1: 21.34 C[0m
+[0;32mI (67873) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (67883) example: Request headers lost[0m
+[0;32mI (68413) example: PT100 CH1: 21.24 C[0m
+[0;32mI (68993) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (69003) example: Request headers lost[0m
+[0;32mI (69413) example: PT100 CH1: 21.17 C[0m
+[0;32mI (70123) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (70133) example: Request headers lost[0m
+[0;32mI (70413) example: PT100 CH1: 21.10 C[0m
+[0;32mI (71353) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (71363) example: Request headers lost[0m
+[0;32mI (71413) example: PT100 CH1: 21.07 C[0m
+[0;32mI (72413) example: PT100 CH1: 21.00 C[0m
+[0;32mI (72483) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (72483) example: Request headers lost[0m
+[0;32mI (73413) example: PT100 CH1: 21.00 C[0m
+[0;32mI (73603) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (73613) example: Request headers lost[0m
+[0;32mI (74413) example: PT100 CH1: 20.90 C[0m
+[0;32mI (74733) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (74733) example: Request headers lost[0m
+[0;32mI (75413) example: PT100 CH1: 20.87 C[0m
+[0;32mI (75863) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (75863) example: Request headers lost[0m
+[0;32mI (76413) example: PT100 CH1: 20.80 C[0m
+[0;32mI (76993) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (76993) example: Request headers lost[0m
+[0;32mI (77413) example: PT100 CH1: 20.80 C[0m
+[0;32mI (78113) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (78113) example: Request headers lost[0m
+[0;32mI (78413) example: PT100 CH1: 20.76 C[0m
+[0;32mI (79243) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (79243) example: Request headers lost[0m
+[0;32mI (79413) example: PT100 CH1: 20.73 C[0m
+[0;32mI (80363) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (80373) example: Request headers lost[0m
+[0;32mI (80413) example: PT100 CH1: 20.73 C[0m
+[0;32mI (81413) example: PT100 CH1: 20.70 C[0m
+[0;32mI (81593) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (81593) example: Request headers lost[0m
+[0;32mI (82413) example: PT100 CH1: 20.70 C[0m
+[0;32mI (82823) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (82823) example: Request headers lost[0m
+[0;32mI (83413) example: PT100 CH1: 20.70 C[0m
+[0;32mI (83953) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (83953) example: Request headers lost[0m
+[0;32mI (84413) example: PT100 CH1: 20.66 C[0m
+[0;32mI (85073) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (85083) example: Request headers lost[0m
+[0;32mI (85413) example: PT100 CH1: 20.66 C[0m
+[0;32mI (86203) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (86203) example: Request headers lost[0m
+[0;32mI (86413) example: PT100 CH1: 20.66 C[0m
+[0;32mI (87413) example: PT100 CH1: 20.63 C[0m
+[0;32mI (87433) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (87433) example: Request headers lost[0m
+[0;32mI (88413) example: PT100 CH1: 20.66 C[0m
+[0;32mI (88553) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (88563) example: Request headers lost[0m
+[0;32mI (89413) example: PT100 CH1: 20.63 C[0m
+[0;32mI (89683) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (89683) example: Request headers lost[0m
+[0;32mI (90413) example: PT100 CH1: 20.66 C[0m
+[0;32mI (90913) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (90913) example: Request headers lost[0m
+[0;32mI (91413) example: PT100 CH1: 20.66 C[0m
+[0;32mI (92143) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (92143) example: Request headers lost[0m
+[0;32mI (92413) example: PT100 CH1: 20.63 C[0m
+[0;32mI (93273) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (93273) example: Request headers lost[0m
+[0;32mI (93413) example: PT100 CH1: 20.60 C[0m
+[0;32mI (94413) example: PT100 CH1: 20.60 C[0m
+[0;32mI (94493) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (94503) example: Request headers lost[0m
+[0;32mI (95413) example: PT100 CH1: 20.56 C[0m
+[0;32mI (95623) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (95633) example: Request headers lost[0m
+[0;32mI (96413) example: PT100 CH1: 20.56 C[0m
+[0;32mI (96853) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (96853) example: Request headers lost[0m
+[0;32mI (97413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (97983) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (97993) example: Request headers lost[0m
+[0;32mI (98413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (99103) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (99103) example: Request headers lost[0m
+[0;32mI (99413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (100333) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (100333) example: Request headers lost[0m
+[0;32mI (100413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (101413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (101463) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (101463) example: Request headers lost[0m
+[0;32mI (102413) example: PT100 CH1: 20.56 C[0m
+[0;32mI (102583) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (102593) example: Request headers lost[0m
+[0;32mI (103413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (103813) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (103823) example: Request headers lost[0m
+[0;32mI (104413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (104943) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (104943) example: Request headers lost[0m
+[0;32mI (105413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (106063) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (106073) example: Request headers lost[0m
+[0;32mI (106413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (107293) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (107303) example: Request headers lost[0m
+[0;32mI (107413) example: PT100 CH1: 20.56 C[0m
+[0;32mI (108413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (108523) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (108533) example: Request headers lost[0m
+[0;32mI (109413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (109663) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (109663) example: Request headers lost[0m
+[0;32mI (110413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (110883) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (110883) example: Request headers lost[0m
+[0;32mI (111413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (112013) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (112013) example: Request headers lost[0m
+[0;32mI (112413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (113233) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (113243) example: Request headers lost[0m
+[0;32mI (113413) example: PT100 CH1: 20.49 C[0m
+[0;32mI (114363) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (114363) example: Request headers lost[0m
+[0;32mI (114413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (115413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (115593) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (115593) example: Request headers lost[0m
+[0;32mI (116413) example: PT100 CH1: 20.53 C[0m
+[0;32mI (116823) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (116823) example: Request headers lost[0m
+[0;32mI (117413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (117943) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (117953) example: Request headers lost[0m
+[0;32mI (118413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (119173) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (119183) example: Request headers lost[0m
+[0;32mI (119413) example: PT100 CH1: 20.46 C[0m
+[0;32mI (120303) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (120303) example: Request headers lost[0m
+[0;32mI (120413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (121413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (121433) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (121433) example: Request headers lost[0m
+[0;32mI (122413) example: PT100 CH1: 20.43 C[0m
+[0;32mI (122553) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (122563) example: Request headers lost[0m
+[0;32mI (123413) example: PT100 CH1: 20.39 C[0m
+[0;32mI (123783) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (123793) example: Request headers lost[0m
+[0;32mI (124413) example: PT100 CH1: 20.36 C[0m
+[0;32mI (125013) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (125013) example: Request headers lost[0m
+[0;32mI (125413) example: PT100 CH1: 20.36 C[0m
+[0;32mI (126243) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (126243) example: Request headers lost[0m
+[0;32mI (126413) example: PT100 CH1: 20.36 C[0m
+[0;32mI (127363) example: Found header => Host: 192.168.0.152[0m
+[0;32mI (127373) example: Request headers lost[0m
+[0;32mI (127413) example: PT100 CH1: 20.33 C[0m
