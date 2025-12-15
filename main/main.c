@@ -1,12 +1,3 @@
-/* Simple HTTP Server Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -42,10 +33,18 @@
 #define MAX31865_PIN_MISO   GPIO_NUM_13  //SDO на плате сенсора
 #define MAX31865_PIN_MOSI   GPIO_NUM_11  //SDI на плате сенсора
 #define MAX31865_PIN_SCLK   GPIO_NUM_12  //CLK на плате сенсора
-#define MAX31865_PIN_CS     GPIO_NUM_10  //CS на плате сенсора
-/* A simple example that demonstrates how to create GET and POST
- * handlers for the web server.
- */
+//#define MAX31865_PIN_CS     GPIO_NUM_10  //CS на плате сенсора
+
+#define MAX31865_NUM_SENSORS 8
+
+static const gpio_num_t MAX31865_CS_PINS[MAX31865_NUM_SENSORS] = 
+{
+    GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_46, GPIO_NUM_3,
+    GPIO_NUM_8,  GPIO_NUM_18, GPIO_NUM_17, GPIO_NUM_16
+};
+
+static spi_device_handle_t max31865_handles[MAX31865_NUM_SENSORS];
+static volatile float g_temp_c[MAX31865_NUM_SENSORS];   // температуры по каналам
 
 #define MAX31865_RREF           430.0f      // опорный резистор, Ом
 #define MAX31865_RTD_NOMINAL    100.0f      // PT100
@@ -63,8 +62,8 @@
 #define MAX31865_CONFIG_FAULT_CLEAR (1 << 1)
 #define MAX31865_CONFIG_FILTER_50HZ (1 << 0)  // 1 = 50 Гц, 0 = 60 Гц
 
-static spi_device_handle_t max31865_handle;
-static volatile float g_temp_ch1_c = NAN; // Глобальная температура, которую будем показывать в таблице
+//static spi_device_handle_t max31865_handle;
+//static volatile float g_temp_ch1_c = NAN; // Глобальная температура, которую будем показывать в таблице
 static const char *TAG = "example";
 
 #if CONFIG_EXAMPLE_BASIC_AUTH
@@ -228,22 +227,21 @@ static const char temps_page_html_fmt[] =
 "  <table>"
 "    <tr><th>#</th><th>Канал</th><th>Температура, &deg;C</th></tr>"
 "    <tr><td>1</td><td>Position1</td><td id=\"t1\">%s</td></tr>"
-"    <tr><td>2</td><td>Position2</td><td id=\"t2\">--</td></tr>"
-"    <tr><td>3</td><td>Position3</td><td id=\"t3\">--</td></tr>"
-"    <tr><td>4</td><td>Position4</td><td id=\"t4\">--</td></tr>"
-"    <tr><td>5</td><td>Position5</td><td id=\"t5\">--</td></tr>"
-"    <tr><td>6</td><td>Position6</td><td id=\"t6\">--</td></tr>"
-"    <tr><td>7</td><td>Position7</td><td id=\"t7\">--</td></tr>"
-"    <tr><td>8</td><td>Position8</td><td id=\"t8\">--</td></tr>"
+"    <tr><td>2</td><td>Position2</td><td id=\"t2\">%s</td></tr>"
+"    <tr><td>3</td><td>Position3</td><td id=\"t3\">%s</td></tr>"
+"    <tr><td>4</td><td>Position4</td><td id=\"t4\">%s</td></tr>"
+"    <tr><td>5</td><td>Position5</td><td id=\"t5\">%s</td></tr>"
+"    <tr><td>6</td><td>Position6</td><td id=\"t6\">%s</td></tr>"
+"    <tr><td>7</td><td>Position7</td><td id=\"t7\">%s</td></tr>"
+"    <tr><td>8</td><td>Position8</td><td id=\"t8\">%s</td></tr>"
 "  </table>"
-"  <p>Канал 1 установлен .... там-то, где-то</p>"
 "</body>"
 "</html>";
 
+
 static esp_err_t max31865_spi_init(void)
 {
-    spi_bus_config_t buscfg = 
-    {
+    spi_bus_config_t buscfg = {
         .mosi_io_num = MAX31865_PIN_MOSI,
         .miso_io_num = MAX31865_PIN_MISO,
         .sclk_io_num = MAX31865_PIN_SCLK,
@@ -255,84 +253,76 @@ static esp_err_t max31865_spi_init(void)
     ESP_RETURN_ON_ERROR(spi_bus_initialize(MAX31865_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO),
                         TAG, "spi_bus_initialize failed");
 
-    spi_device_interface_config_t devcfg = 
-    {
-        .clock_speed_hz = 1000000,   // 1 МГц, MAX31865 до 5 МГц
-        .mode = 1,                   // SPI mode 1 (CPOL=0, CPHA=1) — для MAX31865 ок
-        .spics_io_num = MAX31865_PIN_CS,
+    spi_device_interface_config_t devcfg = {
+        .clock_speed_hz = 1000000, //1MHz 
+        .mode = 1,
+        .spics_io_num = -1,     // зададим в цикле
         .queue_size = 1,
     };
 
-    ESP_RETURN_ON_ERROR(spi_bus_add_device(MAX31865_SPI_HOST, &devcfg, &max31865_handle),
-                        TAG, "spi_bus_add_device failed");
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) {
+        devcfg.spics_io_num = MAX31865_CS_PINS[i];
+        ESP_RETURN_ON_ERROR(spi_bus_add_device(MAX31865_SPI_HOST, &devcfg, &max31865_handles[i]),
+                            TAG, "spi_bus_add_device failed");
+        g_temp_c[i] = NAN;
+    }
 
     return ESP_OK;
 }
 
-static esp_err_t max31865_write_reg(uint8_t reg, uint8_t value)
+
+static esp_err_t max31865_write_reg(spi_device_handle_t h, uint8_t reg, uint8_t value)
 {
     uint8_t data[2];
-    data[0] = reg | 0x80;   // бит 7 = 1 -> запись
+    data[0] = reg | 0x80;
     data[1] = value;
 
-    spi_transaction_t t = 
-    {
+    spi_transaction_t t = {
         .length = 16,
         .tx_buffer = data,
     };
-
-    return spi_device_transmit(max31865_handle, &t);
+    return spi_device_transmit(h, &t);
 }
 
-static esp_err_t max31865_read_regs(uint8_t reg, uint8_t *buf, size_t len)
+static esp_err_t max31865_read_regs(spi_device_handle_t h, uint8_t reg, uint8_t *buf, size_t len)
 {
-    if (len + 1 > 8) 
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
+    if (len + 1 > 8) return ESP_ERR_INVALID_ARG;
 
     uint8_t data[8] = {0};
-    data[0] = reg & 0x7F;   // бит 7 = 0 -> чтение
+    data[0] = reg & 0x7F;
 
-    spi_transaction_t t = 
-    {
+    spi_transaction_t t = {
         .length = (len + 1) * 8,
         .tx_buffer = data,
         .rx_buffer = data,
     };
 
-    esp_err_t ret = spi_device_transmit(max31865_handle, &t);
-    if (ret != ESP_OK) 
-    {
-        return ret;
-    }
+    esp_err_t ret = spi_device_transmit(h, &t);
+    if (ret != ESP_OK) return ret;
 
     memcpy(buf, &data[1], len);
     return ESP_OK;
 }
 
-static esp_err_t max31865_configure(void)
+static esp_err_t max31865_configure(spi_device_handle_t h)
 {
-    // Включаем bias, авто-конверсию, 4-проводную схему, фильтр 50 Гц
     uint8_t cfg = 0;
     cfg |= MAX31865_CONFIG_BIAS;
     cfg |= MAX31865_CONFIG_AUTO_CONV;
-  //  cfg |= MAX31865_CONFIG_3WIRE;        // если 2-проводная — можно убрать
     cfg |= MAX31865_CONFIG_FILTER_50HZ;
-    cfg |= MAX31865_CONFIG_FAULT_CLEAR;  // сброс флагов
+    cfg |= MAX31865_CONFIG_FAULT_CLEAR;
 
-    return max31865_write_reg(MAX31865_REG_CONFIG, cfg);
+    return max31865_write_reg(h, MAX31865_REG_CONFIG, cfg);
 }
 
-static esp_err_t max31865_read_rtd_raw(uint16_t *rtd)
+static esp_err_t max31865_read_rtd_raw(spi_device_handle_t h, uint16_t *rtd)
 {
     uint8_t buf[2];
-    ESP_RETURN_ON_ERROR(max31865_read_regs(MAX31865_REG_RTD_MSB, buf, 2),
+    ESP_RETURN_ON_ERROR(max31865_read_regs(h, MAX31865_REG_RTD_MSB, buf, 2),
                         TAG, "read RTD failed");
 
     uint16_t raw = ((uint16_t)buf[0] << 8) | buf[1];
-    raw >>= 1; // младший бит — флаг fault, выбрасываем
-
+    raw >>= 1;
     *rtd = raw;
     return ESP_OK;
 }
@@ -357,24 +347,24 @@ static float max31865_rtd_to_celsius(uint16_t rtd)
     return temp; // для отрицательных температур понадобится другая формула
 }
 
-static float max31865_read_temperature_c(void)
+static float max31865_read_temperature_c(spi_device_handle_t h)
 {
     uint16_t rtd;
-    if (max31865_read_rtd_raw(&rtd) != ESP_OK) 
-    {
-        return NAN;
-    }
+    if (max31865_read_rtd_raw(h, &rtd) != ESP_OK) return NAN;
     return max31865_rtd_to_celsius(rtd);
 }
 
 // Задача, которая раз в секунду обновляет глобальную температуру
 static void max31865_task(void *arg)
 {
-    while (1) 
-    {
-        float t = max31865_read_temperature_c();
-        g_temp_ch1_c = t;
-        ESP_LOGI(TAG, "PT100 CH1: %.2f C", t);
+    vTaskDelay(pdMS_TO_TICKS(200)); // дать время на первые конверсии после конфигурации
+
+    while (1) {
+        for (int i = 0; i < MAX31865_NUM_SENSORS; i++) {
+            float t = max31865_read_temperature_c(max31865_handles[i]);
+            g_temp_c[i] = t;
+            ESP_LOGI(TAG, "PT100 CH%d: %.2f C", i + 1, t);
+        }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -464,27 +454,32 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
 
        httpd_resp_set_type(req, "text/html; charset=utf-8");
 
-    char temp_buf[32];
-    float t = g_temp_ch1_c;
+    // 8 датчиков -> 8 строк для подстановки в HTML
+    char tbuf[MAX31865_NUM_SENSORS][16];
 
-    if (isnan(t)) 
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
     {
-        strcpy(temp_buf, "--");
-    } 
-        else 
-    {
-        snprintf(temp_buf, sizeof(temp_buf), "%.2f", t);
+        float t = g_temp_c[i];     // <-- ВАЖНО: берем из массива, не g_temp_ch1_c
+        if (isnan(t)) 
+        {
+            strcpy(tbuf[i], "--");
+        } else 
+        {
+            snprintf(tbuf[i], sizeof(tbuf[i]), "%.2f", t);
+        }
     }
 
-    // 1. Узнаём, сколько байт нужно под итоговую страницу
-    int len = snprintf(NULL, 0, temps_page_html_fmt, temp_buf);
+    // 1) Узнаём, сколько байт нужно под итоговую страницу (передаём 8 строк!)
+    int len = snprintf(NULL, 0, temps_page_html_fmt,
+                       tbuf[0], tbuf[1], tbuf[2], tbuf[3],
+                       tbuf[4], tbuf[5], tbuf[6], tbuf[7]);
     if (len < 0) 
     {
         httpd_resp_send_500(req);
         return ESP_FAIL;
     }
 
-    // 2. Выделяем буфер нужного размера (+1 под '\0')
+    // 2) Выделяем буфер
     char *page = malloc(len + 1);
     if (!page) 
     {
@@ -492,8 +487,10 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
         return ESP_ERR_NO_MEM;
     }
 
-    // 3. Формируем страницу
-    int written = snprintf(page, len + 1, temps_page_html_fmt, temp_buf);
+    // 3) Формируем страницу
+    int written = snprintf(page, len + 1, temps_page_html_fmt,
+                           tbuf[0], tbuf[1], tbuf[2], tbuf[3],
+                           tbuf[4], tbuf[5], tbuf[6], tbuf[7]);
     if (written < 0 || written > len) 
     {
         free(page);
@@ -501,11 +498,10 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    // 4. Отправляем ответ
+    // 4) Отправляем ответ
     httpd_resp_send(req, page, len);
-
-    // 5. Чистим память
     free(page);
+
 
 
 
@@ -797,11 +793,13 @@ void app_main(void)
 #endif // CONFIG_EXAMPLE_CONNECT_ETHERNET
 #endif // !CONFIG_IDF_TARGET_LINUX
 
-    // --- Инициализация MAX31865 + запуск задачи чтения температуры ---
+    // --- Инициализация all MAX31865 + запуск задачи чтения температуры ---
     ESP_ERROR_CHECK(max31865_spi_init());
-    ESP_ERROR_CHECK(max31865_configure());
-    xTaskCreate(max31865_task, "max31865_task", 4096, NULL, 5, NULL);
-
+for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+{
+    ESP_ERROR_CHECK(max31865_configure(max31865_handles[i]));
+}
+xTaskCreate(max31865_task, "max31865_task", 4096, NULL, 5, NULL);
 
     /* Start the server for the first time */
     server = start_webserver();
