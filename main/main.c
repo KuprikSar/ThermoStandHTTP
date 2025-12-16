@@ -16,6 +16,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "driver/spi_master.h"
+#include "driver/gpio.h"
 #include "hal/gpio_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -39,11 +40,11 @@
 
 static const gpio_num_t MAX31865_CS_PINS[MAX31865_NUM_SENSORS] = 
 {
-    GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_46, GPIO_NUM_3,
+    GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_15, GPIO_NUM_7,
     GPIO_NUM_8,  GPIO_NUM_18, GPIO_NUM_17, GPIO_NUM_16
 };
 
-static spi_device_handle_t max31865_handles[MAX31865_NUM_SENSORS];
+static spi_device_handle_t max31865_handle;
 static volatile float g_temp_c[MAX31865_NUM_SENSORS];   // температуры по каналам
 
 #define MAX31865_RREF           430.0f      // опорный резистор, Ом
@@ -241,7 +242,8 @@ static const char temps_page_html_fmt[] =
 
 static esp_err_t max31865_spi_init(void)
 {
-    spi_bus_config_t buscfg = {
+    spi_bus_config_t buscfg = 
+    {
         .mosi_io_num = MAX31865_PIN_MOSI,
         .miso_io_num = MAX31865_PIN_MISO,
         .sclk_io_num = MAX31865_PIN_SCLK,
@@ -253,72 +255,111 @@ static esp_err_t max31865_spi_init(void)
     ESP_RETURN_ON_ERROR(spi_bus_initialize(MAX31865_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO),
                         TAG, "spi_bus_initialize failed");
 
-    spi_device_interface_config_t devcfg = {
-        .clock_speed_hz = 1000000, //1MHz 
+    spi_device_interface_config_t devcfg = 
+    {
+        .clock_speed_hz = 1000000,
         .mode = 1,
-        .spics_io_num = -1,     // зададим в цикле
+        .spics_io_num = -1,     // CS будем дёргать вручную GPIO
         .queue_size = 1,
     };
 
-    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) {
-        devcfg.spics_io_num = MAX31865_CS_PINS[i];
-        ESP_RETURN_ON_ERROR(spi_bus_add_device(MAX31865_SPI_HOST, &devcfg, &max31865_handles[i]),
-                            TAG, "spi_bus_add_device failed");
+    ESP_RETURN_ON_ERROR(spi_bus_add_device(MAX31865_SPI_HOST, &devcfg, &max31865_handle),
+                        TAG, "spi_bus_add_device failed");
+
+    // Настраиваем все CS как выходы и уводим в "1" (неактивно)
+    uint64_t mask = 0;
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+    {
+        mask |= (1ULL << MAX31865_CS_PINS[i]);
         g_temp_c[i] = NAN;
+    }
+
+    gpio_config_t io_conf = 
+    {
+        .pin_bit_mask = mask,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = 0,
+        .pull_down_en = 0,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_RETURN_ON_ERROR(gpio_config(&io_conf), TAG, "gpio_config(CS) failed");
+
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+    {
+        gpio_set_level(MAX31865_CS_PINS[i], 1);
     }
 
     return ESP_OK;
 }
 
-
-static esp_err_t max31865_write_reg(spi_device_handle_t h, uint8_t reg, uint8_t value)
+static inline void max31865_select(int idx)
 {
-    uint8_t data[2];
-    data[0] = reg | 0x80;
-    data[1] = value;
+    // чтобы гарантированно не было "двух активных" — поднимаем все, потом опускаем нужный
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+    {
+        gpio_set_level(MAX31865_CS_PINS[i], 1);
+    }
+    gpio_set_level(MAX31865_CS_PINS[idx], 0);
+}
+
+static inline void max31865_deselect(int idx)
+{
+    gpio_set_level(MAX31865_CS_PINS[idx], 1);
+}
+
+
+static esp_err_t max31865_write_reg(int idx, uint8_t reg, uint8_t value)
+{
+    uint8_t data[2] = { (uint8_t)(reg | 0x80), value };
 
     spi_transaction_t t = {
         .length = 16,
         .tx_buffer = data,
     };
-    return spi_device_transmit(h, &t);
+
+    max31865_select(idx);
+    esp_err_t ret = spi_device_transmit(max31865_handle, &t);
+    max31865_deselect(idx);
+    return ret;
 }
 
-static esp_err_t max31865_read_regs(spi_device_handle_t h, uint8_t reg, uint8_t *buf, size_t len)
+static esp_err_t max31865_read_regs(int idx, uint8_t reg, uint8_t *buf, size_t len)
 {
     if (len + 1 > 8) return ESP_ERR_INVALID_ARG;
 
     uint8_t data[8] = {0};
     data[0] = reg & 0x7F;
 
-    spi_transaction_t t = {
+    spi_transaction_t t = 
+    {
         .length = (len + 1) * 8,
         .tx_buffer = data,
         .rx_buffer = data,
     };
 
-    esp_err_t ret = spi_device_transmit(h, &t);
-    if (ret != ESP_OK) return ret;
+    max31865_select(idx);
+    esp_err_t ret = spi_device_transmit(max31865_handle, &t);
+    max31865_deselect(idx);
 
+    if (ret != ESP_OK) return ret;
     memcpy(buf, &data[1], len);
     return ESP_OK;
 }
 
-static esp_err_t max31865_configure(spi_device_handle_t h)
+static esp_err_t max31865_configure(int idx)
 {
     uint8_t cfg = 0;
     cfg |= MAX31865_CONFIG_BIAS;
     cfg |= MAX31865_CONFIG_AUTO_CONV;
     cfg |= MAX31865_CONFIG_FILTER_50HZ;
     cfg |= MAX31865_CONFIG_FAULT_CLEAR;
-
-    return max31865_write_reg(h, MAX31865_REG_CONFIG, cfg);
+    return max31865_write_reg(idx, MAX31865_REG_CONFIG, cfg);
 }
 
-static esp_err_t max31865_read_rtd_raw(spi_device_handle_t h, uint16_t *rtd)
+static esp_err_t max31865_read_rtd_raw(int idx, uint16_t *rtd)
 {
     uint8_t buf[2];
-    ESP_RETURN_ON_ERROR(max31865_read_regs(h, MAX31865_REG_RTD_MSB, buf, 2),
+    ESP_RETURN_ON_ERROR(max31865_read_regs(idx, MAX31865_REG_RTD_MSB, buf, 2),
                         TAG, "read RTD failed");
 
     uint16_t raw = ((uint16_t)buf[0] << 8) | buf[1];
@@ -347,10 +388,10 @@ static float max31865_rtd_to_celsius(uint16_t rtd)
     return temp; // для отрицательных температур понадобится другая формула
 }
 
-static float max31865_read_temperature_c(spi_device_handle_t h)
+static float max31865_read_temperature_c(int idx)
 {
     uint16_t rtd;
-    if (max31865_read_rtd_raw(h, &rtd) != ESP_OK) return NAN;
+    if (max31865_read_rtd_raw(idx, &rtd) != ESP_OK) return NAN;
     return max31865_rtd_to_celsius(rtd);
 }
 
@@ -359,11 +400,11 @@ static void max31865_task(void *arg)
 {
     vTaskDelay(pdMS_TO_TICKS(200)); // дать время на первые конверсии после конфигурации
 
-    while (1) {
-        for (int i = 0; i < MAX31865_NUM_SENSORS; i++) {
-            float t = max31865_read_temperature_c(max31865_handles[i]);
-            g_temp_c[i] = t;
-            ESP_LOGI(TAG, "PT100 CH%d: %.2f C", i + 1, t);
+    while (1) 
+    {
+        for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+        {
+            g_temp_c[i] = max31865_read_temperature_c(i);
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -795,11 +836,13 @@ void app_main(void)
 
     // --- Инициализация all MAX31865 + запуск задачи чтения температуры ---
     ESP_ERROR_CHECK(max31865_spi_init());
+
 for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
 {
-    ESP_ERROR_CHECK(max31865_configure(max31865_handles[i]));
+    ESP_ERROR_CHECK(max31865_configure(i));
 }
-xTaskCreate(max31865_task, "max31865_task", 4096, NULL, 5, NULL);
+    xTaskCreate(max31865_task, "max31865_task", 4096, NULL, 5, NULL);
+
 
     /* Start the server for the first time */
     server = start_webserver();

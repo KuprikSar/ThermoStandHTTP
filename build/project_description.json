@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "simple",
-    "project_version":    "59800ff-dirty",
+    "project_version":    "6201526-dirty",
     "project_path":       "D:/ESP32_PROJ/HTTP_SERV/simple",
     "idf_path":           "C:/Users/UserNEW/esp/v5.5.1/esp-idf",
     "build_dir":          "D:/ESP32_PROJ/HTTP_SERV/simple/build",
@@ -906,7 +906,7 @@
             "type": "LIBRARY",
             "lib": "__idf_main",
             "reqs": [],
-            "priv_reqs": [ "esp-tls", "nvs_flash", "esp_netif", "esp_http_server", "esp_wifi", "esp_eth", "protocol_examples_common" ],
+            "priv_reqs": [ "esp-tls", "nvs_flash", "esp_netif", "esp_http_server", "esp_wifi", "esp_eth", "esp_driver_gpio", "esp_driver_spi", "esp_event", "protocol_examples_common" ],
             "managed_reqs": [],
             "managed_priv_reqs": [ "protocol_examples_common" ],
             "file": "D:/ESP32_PROJ/HTTP_SERV/simple/build/esp-idf/main/libmain.a",
@@ -2413,7 +2413,7 @@
             "dir": "D:/ESP32_PROJ/HTTP_SERV/simple/main",
             "lib": "__idf_main",
             "reqs": [],
-            "priv_reqs": [ "esp-tls", "nvs_flash", "esp_netif", "esp_http_server", "esp_wifi", "esp_eth", "protocol_examples_common" ],
+            "priv_reqs": [ "esp-tls", "nvs_flash", "esp_netif", "esp_http_server", "esp_wifi", "esp_eth", "esp_driver_gpio", "esp_driver_spi", "esp_event", "protocol_examples_common" ],
             "managed_reqs": [],
             "managed_priv_reqs": [ "protocol_examples_common" ],
             "include_dirs": [ "." ]
