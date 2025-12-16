@@ -8,6 +8,7 @@
 #include "protocol_examples_common.h"
 #include "protocol_examples_utils.h"
 #include "esp_tls_crypto.h"
+#include "esp_rom_sys.h"   // для esp_rom_delay_us()
 #include <esp_http_server.h>
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -239,7 +240,6 @@ static const char temps_page_html_fmt[] =
 "</body>"
 "</html>";
 
-
 static esp_err_t max31865_spi_init(void)
 {
     spi_bus_config_t buscfg = 
@@ -294,13 +294,13 @@ static esp_err_t max31865_spi_init(void)
 
 static inline void max31865_select(int idx)
 {
-    // чтобы гарантированно не было "двух активных" — поднимаем все, потом опускаем нужный
-    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
-    {
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) {
         gpio_set_level(MAX31865_CS_PINS[i], 1);
     }
     gpio_set_level(MAX31865_CS_PINS[idx], 0);
+    esp_rom_delay_us(2);
 }
+
 
 static inline void max31865_deselect(int idx)
 {
@@ -346,6 +346,20 @@ static esp_err_t max31865_read_regs(int idx, uint8_t reg, uint8_t *buf, size_t l
     return ESP_OK;
 }
 
+static esp_err_t max31865_read_fault(int idx, uint8_t *fault)
+{
+    return max31865_read_regs(idx, MAX31865_REG_FAULT_STATUS, fault, 1);
+}
+
+static esp_err_t max31865_read_rtd16(int idx, uint16_t *rtd16)
+{
+    uint8_t buf[2];
+    ESP_RETURN_ON_ERROR(max31865_read_regs(idx, MAX31865_REG_RTD_MSB, buf, 2),
+                        TAG, "read RTD failed");
+    *rtd16 = ((uint16_t)buf[0] << 8) | buf[1];
+    return ESP_OK;
+}
+
 static esp_err_t max31865_configure(int idx)
 {
     uint8_t cfg = 0;
@@ -358,15 +372,21 @@ static esp_err_t max31865_configure(int idx)
 
 static esp_err_t max31865_read_rtd_raw(int idx, uint16_t *rtd)
 {
-    uint8_t buf[2];
-    ESP_RETURN_ON_ERROR(max31865_read_regs(idx, MAX31865_REG_RTD_MSB, buf, 2),
-                        TAG, "read RTD failed");
+    uint16_t rtd16;
+    ESP_RETURN_ON_ERROR(max31865_read_rtd16(idx, &rtd16), TAG, "read RTD16 failed");
 
-    uint16_t raw = ((uint16_t)buf[0] << 8) | buf[1];
-    raw >>= 1;
-    *rtd = raw;
+    // bit0 в LSB = fault
+    if (rtd16 & 0x0001) {
+        uint8_t fault = 0;
+        (void)max31865_read_fault(idx, &fault);
+        ESP_LOGW(TAG, "CH%d fault! RTD16=0x%04X faultReg=0x%02X", idx+1, rtd16, fault);
+        return ESP_FAIL;
+    }
+
+    *rtd = (rtd16 >> 1);
     return ESP_OK;
 }
+
 
 // Переводим код АЦП в температуру по Callendar–Van Dusen для 0..850 °C
 static float max31865_rtd_to_celsius(uint16_t rtd)
@@ -398,6 +418,17 @@ static float max31865_read_temperature_c(int idx)
 // Задача, которая раз в секунду обновляет глобальную температуру
 static void max31865_task(void *arg)
 {
+    /*
+    uint16_t rtd16 = 0;
+    uint8_t fault = 0;
+
+    ESP_ERROR_CHECK(max31865_read_rtd16(i, &rtd16));
+    ESP_ERROR_CHECK(max31865_read_fault(i, &fault));
+
+    ESP_LOGI(TAG, "CH%d: RTD16=0x%04X faultBit=%d faultReg=0x%02X",
+         i+1, rtd16, (int)(rtd16 & 1), fault);
+    */
+
     vTaskDelay(pdMS_TO_TICKS(200)); // дать время на первые конверсии после конфигурации
 
     while (1) 
@@ -408,8 +439,8 @@ static void max31865_task(void *arg)
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+        
 }
-
 
 /* An HTTP GET handler */
 static esp_err_t hello_get_handler(httpd_req_t *req)
@@ -571,10 +602,11 @@ static esp_err_t echo_post_handler(httpd_req_t *req)
     char buf[100];
     int ret, remaining = req->content_len;
 
-    while (remaining > 0) {
+    while (remaining > 0) 
+    {
         /* Read the data for the request */
-        if ((ret = httpd_req_recv(req, buf,
-                        MIN(remaining, sizeof(buf)))) <= 0) {
+        if ((ret = httpd_req_recv(req, buf, MIN(remaining, sizeof(buf)))) <= 0) 
+        {
             if (ret == HTTPD_SOCK_ERR_TIMEOUT) 
             {
                 /* Retry receiving if timeout occurred */
