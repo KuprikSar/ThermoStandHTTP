@@ -44,7 +44,7 @@ static const gpio_num_t MAX31865_CS_PINS[MAX31865_NUM_SENSORS] =
     GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_15, GPIO_NUM_7,
     GPIO_NUM_8,  GPIO_NUM_18, GPIO_NUM_17, GPIO_NUM_16
 };
-
+//10-CH1, 9-CH2, 15-CH3, 7-CH4, 8-CH5, 18-CH6, 17-CH7, 16-CH8
 static spi_device_handle_t max31865_handle;
 static volatile float g_temp_c[MAX31865_NUM_SENSORS];   // температуры по каналам
 
