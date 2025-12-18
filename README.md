@@ -1,70 +1,131 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 | Linux |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- | -------- | -------- | ----- |
+# Стенд проверки температуры на ESP32 + PT100 (MAX31865)
 
-# Simple HTTPD Server Example
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Target](https://img.shields.io/badge/target-ESP32--S3-orange)
+![ESP-IDF](https://img.shields.io/badge/ESP--IDF-5.x-brightgreen)
+![License](https://img.shields.io/badge/license-TBD-lightgrey)
 
-The Example consists of HTTPD server demo with demonstration of URI handling :
-    1. URI \hello for GET command returns "Hello World!" message
-    2. URI \echo for POST command echoes back the POSTed message
-    3. URI \sse for GET command sends a message to client every second
+Проект прошивки для **ESP32-S3**, которая измеряет температуру с **PT100 (RTD)** через **MAX31865** (SPI) и публикует результаты в **веб-интерфейсе** и/или через **HTTP API**.  
+Подходит для стенда проверки/сравнения датчиков, термокамеры, нагревателей, отладки железа и т.д.
 
-## User Callback
+---
 
-The example includes a simple user callback that can be used to get the SSL context (connection information) when the server is being initialized. To enable the user callback, set `CONFIG_EXAMPLE_ENABLE_HTTPS_USER_CALLBACK` to `y` in the project configuration menu.
+## Возможности
 
-## Server-Sent Events (SSE)
+- ✅ Чтение температуры с PT100 через MAX31865 по SPI
+- ✅ Несколько каналов (например, 2/4/8 — задаётся конфигом и количеством CS-линий)
+- ✅ Отображение результатов в браузере (таблица/статусы) + автообновление
+- ✅ Диагностика ошибок MAX31865 (обрыв, КЗ, fault flags)
+- ✅ Работа по Wi‑Fi (при необходимости можно добавить Ethernet, если плата это поддерживает)
 
-The example also includes a simple SSE handler (having endpoint \sse), which sends a message to the client every second. To enable SSE, set `CONFIG_EXAMPLE_ENABLE_SSE_HANDLER` to `y` in the project configuration menu.
+---
 
-## How to use example
+## Железо
 
-### Hardware Required
+**Минимум:**
+- ESP32-S3 devkit (или ваша плата)
+- MAX31865 (breakout или на вашей PCB)
+- PT100 (2/3/4‑проводная схема — зависит от вашего включения)
 
-* A development board with ESP32/ESP32-S2/ESP32-C3 SoC (e.g., ESP32-DevKitC, ESP-WROVER-KIT, etc.)
-* A USB cable for power supply and programming
+**SPI (общий):**
+- SCLK / MOSI / MISO — общие на все MAX31865
+- **CS** — отдельный на каждый канал/чип (если несколько)
 
-### Configure the project
+> Рекомендация: держать линии SPI короткими, предусмотреть серийные резисторы при длинных проводах, и внимательно относиться к земле/экранированию возле датчиков.
 
-```
+---
+
+## Быстрый старт (ESP-IDF)
+
+1) Установить ESP‑IDF (удобно через официальный установщик Espressif или VS Code ESP‑IDF extension)
+
+2) В корне проекта:
+```bash
+idf.py set-target esp32s3
 idf.py menuconfig
 ```
-* Open the project configuration menu (`idf.py menuconfig`) to configure Wi-Fi or Ethernet. See "Establishing Wi-Fi or Ethernet Connection" section in [examples/protocols/README.md](../../README.md) for more details.
 
-### Build and Flash
+3) Настроить сеть:
+- `Example Connection Configuration` (Wi‑Fi SSID/Password)  
+  *(или ваш раздел конфигурации, если уже переехали с example_connect)*
 
-Build the project and flash it to the board, then run monitor tool to view serial output:
-
-```
+4) Сборка и прошивка:
+```bash
+idf.py build
 idf.py -p PORT flash monitor
 ```
 
-(Replace PORT with the name of the serial port to use.)
+---
 
-(To exit the serial monitor, type ``Ctrl-]``.)
+## Веб‑интерфейс
 
-See the Getting Started Guide for full steps to configure and use ESP-IDF to build projects.
+После запуска прошивка выводит IP в логах. Откройте в браузере:
 
-### Test the example :
-        * run the test script : "python scripts/client.py \<IP\> \<port\> \<MSG\>"
-            * the provided test script first does a GET \hello and displays the response
-            * the script does a POST to \echo with the user input \<MSG\> and displays the response
-        * or use curl (assuming IP is 192.168.43.130):
-            1. "curl 192.168.43.130:80/hello"  - tests the GET "\hello" handler
-            2. "curl -X POST --data-binary @anyfile 192.168.43.130:80/echo > tmpfile"
-                * "anyfile" is the file being sent as request body and "tmpfile" is where the body of the response is saved
-                * since the server echoes back the request body, the two files should be same, as can be confirmed using : "cmp anyfile tmpfile"
-            3. "curl -X PUT -d "0" 192.168.43.130:80/ctrl" - disable /hello and /echo handlers
-            4. "curl -X PUT -d "1" 192.168.43.130:80/ctrl" -  enable /hello and /echo handlers
+- `http://<IP-устройства>/`
 
-## Example Output
+Обычно на странице отображается:
+- номер канала
+- температура (°C)
+- статус/ошибки (fault)
+- (опционально) сырые данные/сопротивление/время обновления
+
+---
+
+## HTTP API (пример)
+
+Если в проекте включён JSON‑эндпоинт, удобно забирать данные скриптами/графаной/логгером:
+
+- `GET /api/temps` → текущие температуры и fault‑статусы
+
+Пример ответа:
+```json
+{
+  "ts_ms": 1730000000,
+  "sensors": [
+    { "ch": 0, "temp_c": 24.81, "fault": 0 },
+    { "ch": 1, "temp_c": 25.02, "fault": 0 }
+  ]
+}
 ```
-I (9580) example_connect: - IPv4 address: 192.168.194.219
-I (9580) example_connect: - IPv6 address: fe80:0000:0000:0000:266f:28ff:fe80:2c74, type: ESP_IP6_ADDR_IS_LINK_LOCAL
-I (9590) example: Starting server on port: '80'
-I (9600) example: Registering URI handlers
-I (66450) example: Found header => Host: 192.168.194.219
-I (66460) example: Request headers lost
-```
+
+*(Если у вас эндпоинт называется иначе — просто переименуйте этот раздел под фактические URL.)*
+
+---
+
+## Конфигурация проекта
+
+Обычно настраивается:
+- количество каналов/CS‑пинов
+- параметры RTD (PT100/PT1000), `Rref`, 2/3/4‑wire, частота фильтра (50/60 Hz)
+- период опроса и обновления веб‑страницы
+
+Подсказка: удобно хранить пины/каналы в одном массиве/структуре и обходить циклом.
+
+---
 
 ## Troubleshooting
-* If the server log shows "httpd_parse: parse_block: request URI/header too long", especially when handling POST requests, then you probably need to increase HTTPD_MAX_REQ_HDR_LEN, which you can find in the project configuration menu (`idf.py menuconfig`): Component config -> HTTP Server -> Max HTTP Request Header Length
+
+- **Путается target (esp32 vs esp32s3):**  
+  выполните `idf.py set-target esp32s3` и сделайте `idf.py fullclean`, если нужно.
+- **HTTP “request URI/header too long”:**  
+  увеличьте `HTTPD_MAX_REQ_HDR_LEN` в `menuconfig`  
+  `Component config → HTTP Server → Max HTTP Request Header Length`
+- **Fault на MAX31865:**  
+  проверьте подключение RTD (особенно 3‑проводку), качество контактов, питание/землю и длину проводов.
+
+---
+
+## Версии
+
+Смотри `CHANGELOG.md`.
+
+---
+
+## Roadmap (идеи)
+
+- [ ] SSE/WS поток данных (без постоянных перезагрузок страницы)
+- [ ] Калибровка каналов (offset/gain) + сохранение в NVS
+- [ ] Экспорт CSV/лог на SD/USB‑UART
+- [ ] Prometheus `/metrics`
+
+---
