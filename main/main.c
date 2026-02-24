@@ -37,14 +37,16 @@
 #define MAX31865_PIN_SCLK   GPIO_NUM_12  //CLK на плате сенсора
 //#define MAX31865_PIN_CS     GPIO_NUM_10  //CS на плате сенсора
 
-#define MAX31865_NUM_SENSORS 8
+#define MAX31865_NUM_SENSORS 16
 
 static const gpio_num_t MAX31865_CS_PINS[MAX31865_NUM_SENSORS] = 
 {
     GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_15, GPIO_NUM_7,
-    GPIO_NUM_8,  GPIO_NUM_18, GPIO_NUM_17, GPIO_NUM_16
+    GPIO_NUM_8,  GPIO_NUM_18, GPIO_NUM_17, GPIO_NUM_16,
+    GPIO_NUM_6, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_1,
+    GPIO_NUM_2, GPIO_NUM_38, GPIO_NUM_37, GPIO_NUM_36
 };
-//10-CH1, 9-CH2, 15-CH3, 7-CH4, 8-CH5, 18-CH6, 17-CH7, 16-CH8
+//10-CH1, 9-CH2, 15-CH3, 7-CH4, 8-CH5, 18-CH6, 17-CH7, 16-CH8, 6-CH9, 5-CH10, 4-CH11, 1-CH12, 2-CH13, 38-CH14, 37-CH15, 36-CH16
 static spi_device_handle_t max31865_handle;
 static volatile float g_temp_c[MAX31865_NUM_SENSORS];   // температуры по каналам
 
@@ -228,14 +230,22 @@ static const char temps_page_html_fmt[] =
 "  <h1>Температурные датчики PT100</h1>"
 "  <table>"
 "    <tr><th>#</th><th>Канал</th><th>Температура, &deg;C</th></tr>"
-"    <tr><td>1</td><td>Position1</td><td id=\"t1\">%s</td></tr>"
-"    <tr><td>2</td><td>Position2</td><td id=\"t2\">%s</td></tr>"
-"    <tr><td>3</td><td>Position3</td><td id=\"t3\">%s</td></tr>"
-"    <tr><td>4</td><td>Position4</td><td id=\"t4\">%s</td></tr>"
-"    <tr><td>5</td><td>Position5</td><td id=\"t5\">%s</td></tr>"
-"    <tr><td>6</td><td>Position6</td><td id=\"t6\">%s</td></tr>"
-"    <tr><td>7</td><td>Position7</td><td id=\"t7\">%s</td></tr>"
-"    <tr><td>8</td><td>Position8</td><td id=\"t8\">%s</td></tr>"
+"    <tr><td>1</td><td>CH1</td><td id=\"t1\">%s</td></tr>"
+"    <tr><td>2</td><td>CH2</td><td id=\"t2\">%s</td></tr>"
+"    <tr><td>3</td><td>CH3</td><td id=\"t3\">%s</td></tr>"
+"    <tr><td>4</td><td>CH4</td><td id=\"t4\">%s</td></tr>"
+"    <tr><td>5</td><td>CH5</td><td id=\"t5\">%s</td></tr>"
+"    <tr><td>6</td><td>CH6</td><td id=\"t6\">%s</td></tr>"
+"    <tr><td>7</td><td>CH7</td><td id=\"t7\">%s</td></tr>"
+"    <tr><td>8</td><td>CH8</td><td id=\"t8\">%s</td></tr>"
+"    <tr><td>9</td><td>CH9</td><td id=\"t9\">%s</td></tr>"
+"    <tr><td>10</td><td>CH10</td><td id=\"t10\">%s</td></tr>"
+"    <tr><td>11</td><td>CH11</td><td id=\"t11\">%s</td></tr>"
+"    <tr><td>12</td><td>CH12</td><td id=\"t12\">%s</td></tr>"
+"    <tr><td>13</td><td>CH13</td><td id=\"t13\">%s</td></tr>"
+"    <tr><td>14</td><td>CH14</td><td id=\"t14\">%s</td></tr>"
+"    <tr><td>15</td><td>CH15</td><td id=\"t15\">%s</td></tr>"
+"    <tr><td>16</td><td>CH16</td><td id=\"t16\">%s</td></tr>"
 "  </table>"
 "</body>"
 "</html>";
@@ -356,7 +366,7 @@ static esp_err_t max31865_read_rtd16(int idx, uint16_t *rtd16)
     uint8_t buf[2];
     ESP_RETURN_ON_ERROR(max31865_read_regs(idx, MAX31865_REG_RTD_MSB, buf, 2),
                         TAG, "read RTD failed");
-    *rtd16 = ((uint16_t)buf[0] << 8) | buf[1];
+    *rtd16 = ((uint16_t)buf[0] <<8) | buf[1];
     return ESP_OK;
 }
 
@@ -526,7 +536,7 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
 
        httpd_resp_set_type(req, "text/html; charset=utf-8");
 
-    // 8 датчиков -> 8 строк для подстановки в HTML
+    // 16 датчиков -> 16 строк для подстановки в HTML
     char tbuf[MAX31865_NUM_SENSORS][16];
 
     for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
@@ -544,7 +554,9 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
     // 1) Узнаём, сколько байт нужно под итоговую страницу (передаём 8 строк!)
     int len = snprintf(NULL, 0, temps_page_html_fmt,
                        tbuf[0], tbuf[1], tbuf[2], tbuf[3],
-                       tbuf[4], tbuf[5], tbuf[6], tbuf[7]);
+                       tbuf[4], tbuf[5], tbuf[6], tbuf[7],
+                       tbuf[8], tbuf[9], tbuf[10], tbuf[11],
+                       tbuf[12], tbuf[13], tbuf[14], tbuf[15]);
     if (len < 0) 
     {
         httpd_resp_send_500(req);
@@ -562,7 +574,9 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
     // 3) Формируем страницу
     int written = snprintf(page, len + 1, temps_page_html_fmt,
                            tbuf[0], tbuf[1], tbuf[2], tbuf[3],
-                           tbuf[4], tbuf[5], tbuf[6], tbuf[7]);
+                           tbuf[4], tbuf[5], tbuf[6], tbuf[7],
+                           tbuf[8], tbuf[9], tbuf[10], tbuf[11],
+                           tbuf[12], tbuf[13], tbuf[14], tbuf[15]);
     if (written < 0 || written > len) 
     {
         free(page);

@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "simple",
-    "project_version":    "6421459-dirty",
+    "project_version":    "82bf2e3-dirty",
     "project_path":       "D:/ESP32_PROJ/HTTP_SERV/simple",
     "idf_path":           "C:/Users/UserNEW/esp/v5.5.1/esp-idf",
     "build_dir":          "D:/ESP32_PROJ/HTTP_SERV/simple/build",
