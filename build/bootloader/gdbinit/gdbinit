@@ -1,2 +1,2 @@
-source D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader/gdbinit/symbols
-source D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader/gdbinit/connect
+source C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader/gdbinit/symbols
+source C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader/gdbinit/connect

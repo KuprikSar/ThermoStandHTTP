@@ -1,13 +1,13 @@
 # Target labels
  bootloader
 # Source files and their labels
-D:/ESP32_PROJ/HTTP_SERV/simple/build/CMakeFiles/bootloader
-D:/ESP32_PROJ/HTTP_SERV/simple/build/CMakeFiles/bootloader.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/CMakeFiles/bootloader-complete.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
-D:/ESP32_PROJ/HTTP_SERV/simple/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/CMakeFiles/bootloader
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/CMakeFiles/bootloader.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/CMakeFiles/bootloader-complete.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/ESP32_PROJECTS/ThermoStandHTTP/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

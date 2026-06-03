@@ -7,14 +7,16 @@
 #include "esp_netif.h"
 #include "protocol_examples_common.h"
 #include "protocol_examples_utils.h"
-#include "esp_tls_crypto.h"
+#include "mbedtls/base64.h"
 #include "esp_rom_sys.h"   // для esp_rom_delay_us()
 #include <esp_http_server.h>
 #include "esp_event.h"
 #include "esp_netif.h"
-#include "esp_tls.h"
 #include "esp_check.h"
 #include <time.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <sys/time.h>
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
@@ -26,29 +28,76 @@
 #include <esp_wifi.h>
 #include <esp_system.h>
 #include "nvs_flash.h"
-#include "esp_eth.h"
 #endif  // !CONFIG_IDF_TARGET_LINUX
 
 #define EXAMPLE_HTTP_QUERY_KEY_MAX_LEN  (64)
 
-#define MAX31865_SPI_HOST   SPI2_HOST    
-#define MAX31865_PIN_MISO   GPIO_NUM_13  //SDO на плате сенсора
-#define MAX31865_PIN_MOSI   GPIO_NUM_11  //SDI на плате сенсора
-#define MAX31865_PIN_SCLK   GPIO_NUM_12  //CLK на плате сенсора
-//#define MAX31865_PIN_CS     GPIO_NUM_10  //CS на плате сенсора
+#define MAX31865_BANK_COUNT      2
+#define MAX31865_PER_BANK        16
+#define MAX31865_NUM_SENSORS     (MAX31865_BANK_COUNT * MAX31865_PER_BANK)
 
-#define MAX31865_NUM_SENSORS 16
+#define MAX31865_SPI_CLOCK_HZ    1000000
+#define MAX31865_SPI_MODE        1
 
-static const gpio_num_t MAX31865_CS_PINS[MAX31865_NUM_SENSORS] = 
+typedef struct
 {
-    GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_15, GPIO_NUM_7,
-    GPIO_NUM_8,  GPIO_NUM_18, GPIO_NUM_17, GPIO_NUM_16,
-    GPIO_NUM_6, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_1,
-    GPIO_NUM_2, GPIO_NUM_38, GPIO_NUM_37, GPIO_NUM_36
+    gpio_num_t a0;
+    gpio_num_t a1;
+    gpio_num_t a2;
+    gpio_num_t a3;
+    gpio_num_t en;   // CS/EN вход IN74HC154, активный низкий. Например pin 18, pin 19 на GND.
+} decoder154_t;
+
+typedef struct
+{
+    spi_host_device_t host;
+    spi_device_handle_t dev;
+
+    gpio_num_t miso;  // SDO MAX31865
+    gpio_num_t mosi;  // SDI MAX31865
+    gpio_num_t sclk;  // CLK MAX31865
+
+    decoder154_t dec;
+} max31865_bank_t;
+
+static max31865_bank_t g_banks[MAX31865_BANK_COUNT] =
+{
+    // Банк 0: датчики CH1..CH16, SPI2_HOST, первый IN74HC154
+    {
+        .host = SPI2_HOST,
+        .miso = GPIO_NUM_13,  // SDO на плате сенсора
+        .mosi = GPIO_NUM_11,  // SDI на плате сенсора
+        .sclk = GPIO_NUM_12,  // CLK на плате сенсора
+        .dec =
+        {
+            .a0 = GPIO_NUM_10,
+            .a1 = GPIO_NUM_9,
+            .a2 = GPIO_NUM_15,
+            .a3 = GPIO_NUM_7,
+            .en = GPIO_NUM_8,   // -> IN74HC154 #1 pin 18 CS1/EN, pin 19 CS2 -> GND
+        },
+    },
+
+    // Банк 1: датчики CH17..CH32, SPI3_HOST, второй IN74HC154
+    // ВАЖНО: GPIO ниже проверь по своей разводке и при необходимости замени.
+    {
+        .host = SPI3_HOST,
+        .miso = GPIO_NUM_37,  // SDO на плате сенсора
+        .mosi = GPIO_NUM_36,  // SDI на плате сенсора
+        .sclk = GPIO_NUM_38,  // CLK на плате сенсора
+        .dec =
+        {
+            .a0 = GPIO_NUM_18,
+            .a1 = GPIO_NUM_17,
+            .a2 = GPIO_NUM_16,
+            .a3 = GPIO_NUM_6,
+            .en = GPIO_NUM_5,   // -> IN74HC154 #2 pin 18 CS1/EN, pin 19 CS2 -> GND
+        },
+    },
 };
-//10-CH1, 9-CH2, 15-CH3, 7-CH4, 8-CH5, 18-CH6, 17-CH7, 16-CH8, 6-CH9, 5-CH10, 4-CH11, 1-CH12, 2-CH13, 38-CH14, 37-CH15, 36-CH16
-static spi_device_handle_t max31865_handle;
+
 static volatile float g_temp_c[MAX31865_NUM_SENSORS];   // температуры по каналам
+static uint32_t g_fault_log_count[MAX31865_NUM_SENSORS];
 
 #define MAX31865_RREF           430.0f      // опорный резистор, Ом
 #define MAX31865_RTD_NOMINAL    100.0f      // PT100
@@ -98,7 +147,7 @@ static char *http_auth_basic(const char *username, const char *password)
         ESP_LOGE(TAG, "No enough memory for user information");
         return NULL;
     }
-    esp_crypto_base64_encode(NULL, 0, &n, (const unsigned char *)user_info, strlen(user_info));
+    mbedtls_base64_encode(NULL, 0, &n, (const unsigned char *)user_info, strlen(user_info));
 
     /* 6: The length of the "Basic " string
      * n: Number of bytes for a base64 encode format
@@ -108,7 +157,7 @@ static char *http_auth_basic(const char *username, const char *password)
     if (digest) 
     {
         strcpy(digest, "Basic ");
-        esp_crypto_base64_encode((unsigned char *)digest + 6, n, &out, (const unsigned char *)user_info, strlen(user_info));
+        mbedtls_base64_encode((unsigned char *)digest + 6, n, &out, (const unsigned char *)user_info, strlen(user_info));
     }
     free(user_info);
     return digest;
@@ -212,91 +261,195 @@ static void httpd_register_basic_auth(httpd_handle_t server)
 }
 #endif
 
-static const char temps_page_html_fmt[] =
+static const char index_html[] =
 "<!DOCTYPE html>"
-"<html>"
+"<html lang='ru'>"
 "<head>"
-"  <meta charset=\"utf-8\">"
-"  <meta http-equiv=\"refresh\" content=\"1\">"
-"  <title>ESP32-S3 PT100</title>"
-"  <style>"
-"    body{font-family:Arial,Helvetica,sans-serif;margin:20px;}"
-"    table{border-collapse:collapse;}"
-"    th,td{border:1px solid #ccc;padding:6px 10px;text-align:center;}"
-"    th{background:#f0f0f0;}"
-"  </style>"
+"<meta charset='UTF-8'>"
+"<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+"<title>ESP32-S3 PT100</title>"
+"<style>"
+"body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#f7f7f7;}"
+"h1{font-size:42px;margin:0 0 12px 0;}"
+"h2{font-size:24px;margin:8px 0;}"
+".stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;font-size:20px;}"
+".stat-card{background:white;border:1px solid #ccc;border-radius:8px;padding:10px 14px;min-width:115px;box-shadow:0 1px 3px rgba(0,0,0,0.08);}"
+".tables{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;}"
+"table{border-collapse:collapse;background:white;font-size:22px;min-width:430px;box-shadow:0 1px 3px rgba(0,0,0,0.08);}"
+"th,td{border:1px solid #ccc;padding:8px 14px;text-align:center;}"
+"th{background:#e9e9e9;font-weight:bold;}"
+"td.temp{text-align:right;font-variant-numeric:tabular-nums;}"
+".ok{background:#d9f7d9;}"
+".warn{background:#fff3b0;}"
+".hot{background:#ffb3b3;}"
+".err{background:#e0e0e0;color:#b00000;font-weight:bold;}"
+".off{background:#eeeeee;color:#777;}"
+".small{font-size:14px;color:#666;margin-top:12px;}"
+"</style>"
 "</head>"
 "<body>"
-"  <h1>Температурные датчики PT100</h1>"
-"  <table>"
-"    <tr><th>#</th><th>Канал</th><th>Температура, &deg;C</th></tr>"
-"    <tr><td>1</td><td>CH1</td><td id=\"t1\">%s</td></tr>"
-"    <tr><td>2</td><td>CH2</td><td id=\"t2\">%s</td></tr>"
-"    <tr><td>3</td><td>CH3</td><td id=\"t3\">%s</td></tr>"
-"    <tr><td>4</td><td>CH4</td><td id=\"t4\">%s</td></tr>"
-"    <tr><td>5</td><td>CH5</td><td id=\"t5\">%s</td></tr>"
-"    <tr><td>6</td><td>CH6</td><td id=\"t6\">%s</td></tr>"
-"    <tr><td>7</td><td>CH7</td><td id=\"t7\">%s</td></tr>"
-"    <tr><td>8</td><td>CH8</td><td id=\"t8\">%s</td></tr>"
-"    <tr><td>9</td><td>CH9</td><td id=\"t9\">%s</td></tr>"
-"    <tr><td>10</td><td>CH10</td><td id=\"t10\">%s</td></tr>"
-"    <tr><td>11</td><td>CH11</td><td id=\"t11\">%s</td></tr>"
-"    <tr><td>12</td><td>CH12</td><td id=\"t12\">%s</td></tr>"
-"    <tr><td>13</td><td>CH13</td><td id=\"t13\">%s</td></tr>"
-"    <tr><td>14</td><td>CH14</td><td id=\"t14\">%s</td></tr>"
-"    <tr><td>15</td><td>CH15</td><td id=\"t15\">%s</td></tr>"
-"    <tr><td>16</td><td>CH16</td><td id=\"t16\">%s</td></tr>"
-"  </table>"
+"<h1>Температурные датчики PT100</h1>"
+"<div class='stats'>"
+"<div class='stat-card'>OK: <b id='stat-ok'>0</b></div>"
+"<div class='stat-card'>WARN: <b id='stat-warn'>0</b></div>"
+"<div class='stat-card'>HOT: <b id='stat-hot'>0</b></div>"
+"<div class='stat-card'>ERR: <b id='stat-err'>0</b></div>"
+"<div class='stat-card'>OFF: <b id='stat-off'>0</b></div>"
+"<div class='stat-card'>Обновление: <b id='last-update'>--</b></div>"
+"</div>"
+"<div class='tables'>"
+"<div>"
+"<h2>Каналы CH1...CH16</h2>"
+"<table>"
+"<thead><tr><th>Канал</th><th>Температура, °C</th><th>Статус</th></tr></thead>"
+"<tbody id='table-1'></tbody>"
+"</table>"
+"</div>"
+"<div>"
+"<h2>Каналы CH17...CH32</h2>"
+"<table>"
+"<thead><tr><th>Канал</th><th>Температура, °C</th><th>Статус</th></tr></thead>"
+"<tbody id='table-2'></tbody>"
+"</table>"
+"</div>"
+"</div>"
+"<div class='small'>Данные обновляются без перезагрузки страницы</div>"
+"<script>"
+"function statusFromTemp(ch){"
+"if(!ch.enabled)return{text:'OFF',cls:'off'};"
+"if(!ch.valid)return{text:'ERR',cls:'err'};"
+"if(ch.temp>100.0)return{text:'HOT',cls:'hot'};"
+"if(ch.temp>=80.0)return{text:'WARN',cls:'warn'};"
+"if(ch.temp>=0.0)return{text:'OK',cls:'ok'};"
+"return{text:'ERR',cls:'err'};"
+"}"
+"function makeRow(ch){"
+"const st=statusFromTemp(ch);"
+"const tempText=(ch.enabled&&ch.valid)?ch.temp.toFixed(1):'--';"
+"return `<tr class='${st.cls}'>`+`<td>CH${ch.ch}</td>`+`<td class='temp'>${tempText}</td>`+`<td>${st.text}</td>`+`</tr>`;"
+"}"
+"async function updateData(){"
+"try{"
+"const response=await fetch('/api/temps',{cache:'no-store'});"
+"const data=await response.json();"
+"let html1='',html2='';"
+"let cntOk=0,cntWarn=0,cntHot=0,cntErr=0,cntOff=0;"
+"data.channels.forEach(ch=>{"
+"const st=statusFromTemp(ch);"
+"if(st.text==='OK')cntOk++;"
+"else if(st.text==='WARN')cntWarn++;"
+"else if(st.text==='HOT')cntHot++;"
+"else if(st.text==='ERR')cntErr++;"
+"else if(st.text==='OFF')cntOff++;"
+"if(ch.ch<=16)html1+=makeRow(ch);else html2+=makeRow(ch);"
+"});"
+"document.getElementById('table-1').innerHTML=html1;"
+"document.getElementById('table-2').innerHTML=html2;"
+"document.getElementById('stat-ok').textContent=cntOk;"
+"document.getElementById('stat-warn').textContent=cntWarn;"
+"document.getElementById('stat-hot').textContent=cntHot;"
+"document.getElementById('stat-err').textContent=cntErr;"
+"document.getElementById('stat-off').textContent=cntOff;"
+"document.getElementById('last-update').textContent=new Date().toLocaleTimeString();"
+"}catch(e){document.getElementById('last-update').textContent='ошибка связи';}"
+"}"
+"updateData();"
+"setInterval(updateData,1000);"
+"</script>"
 "</body>"
 "</html>";
 
-static esp_err_t max31865_spi_init(void)
+static inline int max31865_get_bank(int idx)
 {
-    spi_bus_config_t buscfg = 
-    {
-        .mosi_io_num = MAX31865_PIN_MOSI,
-        .miso_io_num = MAX31865_PIN_MISO,
-        .sclk_io_num = MAX31865_PIN_SCLK,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 0,
-    };
+    return idx / MAX31865_PER_BANK;
+}
 
-    ESP_RETURN_ON_ERROR(spi_bus_initialize(MAX31865_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO),
-                        TAG, "spi_bus_initialize failed");
+static inline int max31865_get_channel(int idx)
+{
+    return idx % MAX31865_PER_BANK;
+}
 
-    spi_device_interface_config_t devcfg = 
-    {
-        .clock_speed_hz = 1000000,
-        .mode = 1,
-        .spics_io_num = -1,     // CS будем дёргать вручную GPIO
-        .queue_size = 1,
-    };
+static void decoder154_disable(const decoder154_t *dec)
+{
+    gpio_set_level(dec->en, 1);   // все Y0..Y15 = 1, все MAX31865 не выбраны
+}
 
-    ESP_RETURN_ON_ERROR(spi_bus_add_device(MAX31865_SPI_HOST, &devcfg, &max31865_handle),
-                        TAG, "spi_bus_add_device failed");
+static void decoder154_enable(const decoder154_t *dec)
+{
+    gpio_set_level(dec->en, 0);   // выбранный Yx = 0
+}
 
-    // Настраиваем все CS как выходы и уводим в "1" (неактивно)
-    uint64_t mask = 0;
-    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
-    {
-        mask |= (1ULL << MAX31865_CS_PINS[i]);
-        g_temp_c[i] = NAN;
-    }
+static void decoder154_set_addr(const decoder154_t *dec, uint8_t ch)
+{
+    gpio_set_level(dec->a0, (ch >> 0) & 1);
+    gpio_set_level(dec->a1, (ch >> 1) & 1);
+    gpio_set_level(dec->a2, (ch >> 2) & 1);
+    gpio_set_level(dec->a3, (ch >> 3) & 1);
+}
 
-    gpio_config_t io_conf = 
+static esp_err_t decoder154_init(const decoder154_t *dec)
+{
+    uint64_t mask =
+        (1ULL << dec->a0) |
+        (1ULL << dec->a1) |
+        (1ULL << dec->a2) |
+        (1ULL << dec->a3) |
+        (1ULL << dec->en);
+
+    gpio_config_t io_conf =
     {
         .pin_bit_mask = mask,
         .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = 0,
-        .pull_down_en = 0,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
-    ESP_RETURN_ON_ERROR(gpio_config(&io_conf), TAG, "gpio_config(CS) failed");
 
-    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+    ESP_RETURN_ON_ERROR(gpio_config(&io_conf), TAG, "gpio_config(decoder154) failed");
+
+    // На старте обязательно выключаем дешифратор. Желательно еще иметь внешнюю подтяжку EN/CS1 10 кОм к 3.3 В.
+    decoder154_disable(dec);
+    decoder154_set_addr(dec, 0);
+
+    return ESP_OK;
+}
+
+static esp_err_t max31865_spi_init(void)
+{
+    for (int bank = 0; bank < MAX31865_BANK_COUNT; bank++)
     {
-        gpio_set_level(MAX31865_CS_PINS[i], 1);
+        max31865_bank_t *b = &g_banks[bank];
+
+        ESP_RETURN_ON_ERROR(decoder154_init(&b->dec), TAG, "decoder154_init failed");
+
+        spi_bus_config_t buscfg =
+        {
+            .mosi_io_num = b->mosi,
+            .miso_io_num = b->miso,
+            .sclk_io_num = b->sclk,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .max_transfer_sz = 32,
+        };
+
+        ESP_RETURN_ON_ERROR(spi_bus_initialize(b->host, &buscfg, SPI_DMA_CH_AUTO),
+                            TAG, "spi_bus_initialize bank %d failed", bank);
+
+        spi_device_interface_config_t devcfg =
+        {
+            .clock_speed_hz = MAX31865_SPI_CLOCK_HZ,
+            .mode = MAX31865_SPI_MODE,
+            .spics_io_num = -1,     // CS вручную через IN74HC154
+            .queue_size = 1,
+        };
+
+        ESP_RETURN_ON_ERROR(spi_bus_add_device(b->host, &devcfg, &b->dev),
+                            TAG, "spi_bus_add_device bank %d failed", bank);
+    }
+
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++)
+    {
+        g_temp_c[i] = NAN;
     }
 
     return ESP_OK;
@@ -304,19 +457,40 @@ static esp_err_t max31865_spi_init(void)
 
 static inline void max31865_select(int idx)
 {
-    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) {
-        gpio_set_level(MAX31865_CS_PINS[i], 1);
-    }
-    gpio_set_level(MAX31865_CS_PINS[idx], 0);
+    int bank = max31865_get_bank(idx);
+    int ch = max31865_get_channel(idx);
+    decoder154_t *dec = &g_banks[bank].dec;
+
+    // Защита от глитчей: сначала выключаем 74HC154, потом меняем A0..A3, потом включаем.
+    decoder154_disable(dec);
+    decoder154_set_addr(dec, (uint8_t)ch);
+    esp_rom_delay_us(1);
+    decoder154_enable(dec);
     esp_rom_delay_us(2);
 }
 
-
 static inline void max31865_deselect(int idx)
 {
-    gpio_set_level(MAX31865_CS_PINS[idx], 1);
+    int bank = max31865_get_bank(idx);
+    decoder154_disable(&g_banks[bank].dec);
+    esp_rom_delay_us(1);
 }
 
+static esp_err_t max31865_transmit(int idx, spi_transaction_t *t)
+{
+    if (idx < 0 || idx >= MAX31865_NUM_SENSORS)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    int bank = max31865_get_bank(idx);
+
+    max31865_select(idx);
+    esp_err_t ret = spi_device_transmit(g_banks[bank].dev, t);
+    max31865_deselect(idx);
+
+    return ret;
+}
 
 static esp_err_t max31865_write_reg(int idx, uint8_t reg, uint8_t value)
 {
@@ -327,10 +501,7 @@ static esp_err_t max31865_write_reg(int idx, uint8_t reg, uint8_t value)
         .tx_buffer = data,
     };
 
-    max31865_select(idx);
-    esp_err_t ret = spi_device_transmit(max31865_handle, &t);
-    max31865_deselect(idx);
-    return ret;
+    return max31865_transmit(idx, &t);
 }
 
 static esp_err_t max31865_read_regs(int idx, uint8_t reg, uint8_t *buf, size_t len)
@@ -347,9 +518,7 @@ static esp_err_t max31865_read_regs(int idx, uint8_t reg, uint8_t *buf, size_t l
         .rx_buffer = data,
     };
 
-    max31865_select(idx);
-    esp_err_t ret = spi_device_transmit(max31865_handle, &t);
-    max31865_deselect(idx);
+    esp_err_t ret = max31865_transmit(idx, &t);
 
     if (ret != ESP_OK) return ret;
     memcpy(buf, &data[1], len);
@@ -389,7 +558,14 @@ static esp_err_t max31865_read_rtd_raw(int idx, uint16_t *rtd)
     if (rtd16 & 0x0001) {
         uint8_t fault = 0;
         (void)max31865_read_fault(idx, &fault);
-        ESP_LOGW(TAG, "CH%d fault! RTD16=0x%04X faultReg=0x%02X", idx+1, rtd16, fault);
+
+        // Не спамим UART каждую секунду по всем не подключенным каналам.
+        // Частый ESP_LOGW внутри задачи тоже заметно ест стек.
+        if (idx >= 0 && idx < MAX31865_NUM_SENSORS && g_fault_log_count[idx] < 3) {
+            g_fault_log_count[idx]++;
+            ESP_LOGW(TAG, "CH%d fault! RTD16=0x%04X faultReg=0x%02X", idx + 1, rtd16, fault);
+        }
+
         return ESP_FAIL;
     }
 
@@ -425,188 +601,126 @@ static float max31865_read_temperature_c(int idx)
     return max31865_rtd_to_celsius(rtd);
 }
 
-// Задача, которая раз в секунду обновляет глобальную температуру
-static void max31865_task(void *arg)
+// Задача, которая раз в секунду обновляет температуры одной SPI-банки
+static void max31865_bank_task(void *arg)
 {
-    /*
-    uint16_t rtd16 = 0;
-    uint8_t fault = 0;
-
-    ESP_ERROR_CHECK(max31865_read_rtd16(i, &rtd16));
-    ESP_ERROR_CHECK(max31865_read_fault(i, &fault));
-
-    ESP_LOGI(TAG, "CH%d: RTD16=0x%04X faultBit=%d faultReg=0x%02X",
-         i+1, rtd16, (int)(rtd16 & 1), fault);
-    */
+    int bank = (int)(intptr_t)arg;
+    int first_sensor = bank * MAX31865_PER_BANK;
 
     vTaskDelay(pdMS_TO_TICKS(200)); // дать время на первые конверсии после конфигурации
 
-    while (1) 
+    while (1)
     {
-        for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
+        for (int ch = 0; ch < MAX31865_PER_BANK; ch++)
         {
-            g_temp_c[i] = max31865_read_temperature_c(i);
+            int sensor_index = first_sensor + ch;
+            g_temp_c[sensor_index] = max31865_read_temperature_c(sensor_index);
         }
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
-        
 }
 
-/* An HTTP GET handler */
-static esp_err_t hello_get_handler(httpd_req_t *req)
+/* Главная HTML страница */
+static esp_err_t index_get_handler(httpd_req_t *req)
 {
-    char*  buf;
-    size_t buf_len;
-   
-    /* Get header value string length and allocate memory for length + 1,
-     * extra byte for null termination */
-    buf_len = httpd_req_get_hdr_value_len(req, "Host") + 1;
-    if (buf_len > 1) 
-    {
-        buf = malloc(buf_len);
-        ESP_RETURN_ON_FALSE(buf, ESP_ERR_NO_MEM, TAG, "buffer alloc failed");
-        /* Copy null terminated value string into buffer */
-        if (httpd_req_get_hdr_value_str(req, "Host", buf, buf_len) == ESP_OK) 
-        {
-            ESP_LOGI(TAG, "Found header => Host: %s", buf);
-        }
-        free(buf);
-    }
-
-    buf_len = httpd_req_get_hdr_value_len(req, "Test-Header-2") + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        ESP_RETURN_ON_FALSE(buf, ESP_ERR_NO_MEM, TAG, "buffer alloc failed");
-        if (httpd_req_get_hdr_value_str(req, "Test-Header-2", buf, buf_len) == ESP_OK) 
-        {
-            ESP_LOGI(TAG, "Found header => Test-Header-2: %s", buf);
-        }
-        free(buf);
-    }
-
-    buf_len = httpd_req_get_hdr_value_len(req, "Test-Header-1") + 1;
-    if (buf_len > 1) 
-    {
-        buf = malloc(buf_len);
-        ESP_RETURN_ON_FALSE(buf, ESP_ERR_NO_MEM, TAG, "buffer alloc failed");
-        if (httpd_req_get_hdr_value_str(req, "Test-Header-1", buf, buf_len) == ESP_OK) 
-        {
-            ESP_LOGI(TAG, "Found header => Test-Header-1: %s", buf);
-        }
-        free(buf);
-    }
-
-    /* Read URL query string length and allocate memory for length + 1,
-     * extra byte for null termination */
-    buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > 1) 
-    {
-        buf = malloc(buf_len);
-        ESP_RETURN_ON_FALSE(buf, ESP_ERR_NO_MEM, TAG, "buffer alloc failed");
-        if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) 
-        {
-            ESP_LOGI(TAG, "Found URL query => %s", buf);
-            char param[EXAMPLE_HTTP_QUERY_KEY_MAX_LEN], dec_param[EXAMPLE_HTTP_QUERY_KEY_MAX_LEN] = {0};
-            /* Get value of expected key from query string */
-            if (httpd_query_key_value(buf, "query1", param, sizeof(param)) == ESP_OK) 
-            {
-                ESP_LOGI(TAG, "Found URL query parameter => query1=%s", param);
-                example_uri_decode(dec_param, param, strnlen(param, EXAMPLE_HTTP_QUERY_KEY_MAX_LEN));
-                ESP_LOGI(TAG, "Decoded query parameter => %s", dec_param);
-            }
-            if (httpd_query_key_value(buf, "query3", param, sizeof(param)) == ESP_OK) 
-            {
-                ESP_LOGI(TAG, "Found URL query parameter => query3=%s", param);
-                example_uri_decode(dec_param, param, strnlen(param, EXAMPLE_HTTP_QUERY_KEY_MAX_LEN));
-                ESP_LOGI(TAG, "Decoded query parameter => %s", dec_param);
-            }
-            if (httpd_query_key_value(buf, "query2", param, sizeof(param)) == ESP_OK) 
-            {
-                ESP_LOGI(TAG, "Found URL query parameter => query2=%s", param);
-                example_uri_decode(dec_param, param, strnlen(param, EXAMPLE_HTTP_QUERY_KEY_MAX_LEN));
-                ESP_LOGI(TAG, "Decoded query parameter => %s", dec_param);
-            }
-        }
-        free(buf);
-    }
-
-    /* Set some custom headers */
-    httpd_resp_set_hdr(req, "Custom-Header-1", "Custom-Value-1");
-    httpd_resp_set_hdr(req, "Custom-Header-2", "Custom-Value-2");
-
-       httpd_resp_set_type(req, "text/html; charset=utf-8");
-
-    // 16 датчиков -> 16 строк для подстановки в HTML
-    char tbuf[MAX31865_NUM_SENSORS][16];
-
-    for (int i = 0; i < MAX31865_NUM_SENSORS; i++) 
-    {
-        float t = g_temp_c[i];     // <-- ВАЖНО: берем из массива, не g_temp_ch1_c
-        if (isnan(t)) 
-        {
-            strcpy(tbuf[i], "--");
-        } else 
-        {
-            snprintf(tbuf[i], sizeof(tbuf[i]), "%.2f", t);
-        }
-    }
-
-    // 1) Узнаём, сколько байт нужно под итоговую страницу (передаём 8 строк!)
-    int len = snprintf(NULL, 0, temps_page_html_fmt,
-                       tbuf[0], tbuf[1], tbuf[2], tbuf[3],
-                       tbuf[4], tbuf[5], tbuf[6], tbuf[7],
-                       tbuf[8], tbuf[9], tbuf[10], tbuf[11],
-                       tbuf[12], tbuf[13], tbuf[14], tbuf[15]);
-    if (len < 0) 
-    {
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
-
-    // 2) Выделяем буфер
-    char *page = malloc(len + 1);
-    if (!page) 
-    {
-        httpd_resp_send_500(req);
-        return ESP_ERR_NO_MEM;
-    }
-
-    // 3) Формируем страницу
-    int written = snprintf(page, len + 1, temps_page_html_fmt,
-                           tbuf[0], tbuf[1], tbuf[2], tbuf[3],
-                           tbuf[4], tbuf[5], tbuf[6], tbuf[7],
-                           tbuf[8], tbuf[9], tbuf[10], tbuf[11],
-                           tbuf[12], tbuf[13], tbuf[14], tbuf[15]);
-    if (written < 0 || written > len) 
-    {
-        free(page);
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
-
-    // 4) Отправляем ответ
-    httpd_resp_send(req, page, len);
-    free(page);
-
-
-
-
-    /* After sending the HTTP response the old HTTP request
-     * headers are lost. Check if HTTP request headers can be read now. */
-    if (httpd_req_get_hdr_value_len(req, "Host") == 0) 
-    {
-        ESP_LOGI(TAG, "Request headers lost");
-    }
-    return ESP_OK;
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, index_html, HTTPD_RESP_USE_STRLEN);
 }
 
-static const httpd_uri_t hello = 
+static bool temp_value_is_valid(float t)
+{
+    if (isnan(t)) {
+        return false;
+    }
+
+    // Для этого стенда отрицательные температуры считаем ошибкой.
+    // Верхний предел оставлен с запасом под PT100/MAX31865.
+    if (t < 0.0f || t > 850.0f) {
+        return false;
+    }
+
+    return true;
+}
+
+/* JSON API для обновления таблицы без перезагрузки страницы */
+static esp_err_t temps_api_get_handler(httpd_req_t *req)
+{
+    // Важно: буфер static, чтобы не класть 4 КБ на стек задачи httpd.
+    // Еще важнее: не используем %.2f в snprintf, потому что float -> text
+    // через _dtoa_r оказался тяжелым для стека на ESP32-S3.
+    static char json[4096];
+    int len = 0;
+
+    len += snprintf(json + len, sizeof(json) - len, "{\"channels\":[");
+
+    for (int i = 0; i < MAX31865_NUM_SENSORS; i++)
+    {
+        float t = g_temp_c[i];
+        bool enabled = true;
+        bool valid = temp_value_is_valid(t);
+
+        if (i > 0) {
+            len += snprintf(json + len, sizeof(json) - len, ",");
+        }
+
+        // JSON temp делаем без float printf: 24.3 -> целые десятые.
+        int temp_x10 = 0;
+        if (valid) {
+            temp_x10 = (int)(t * 10.0f + 0.5f);
+        }
+
+        int temp_int = temp_x10 / 10;
+        int temp_frac = temp_x10 % 10;
+
+        len += snprintf(json + len, sizeof(json) - len,
+                        "{\"ch\":%d,\"temp\":%d.%d,\"valid\":%s,\"enabled\":%s}",
+                        i + 1,
+                        temp_int,
+                        temp_frac,
+                        valid ? "true" : "false",
+                        enabled ? "true" : "false");
+
+        if (len < 0 || len >= (int)sizeof(json)) {
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+    }
+
+    len += snprintf(json + len, sizeof(json) - len, "]}");
+
+    if (len < 0 || len >= (int)sizeof(json)) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, json, len);
+}
+
+static const httpd_uri_t index_root_uri =
+{
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = index_get_handler,
+    .user_ctx  = NULL
+};
+
+static const httpd_uri_t index_sensors_uri =
 {
     .uri       = "/sensors",
     .method    = HTTP_GET,
-    .handler   = hello_get_handler,
-    /* Let's pass response string in user
-     * context to demonstrate it's usage */
+    .handler   = index_get_handler,
+    .user_ctx  = NULL
+};
+
+static const httpd_uri_t temps_api_uri =
+{
+    .uri       = "/api/temps",
+    .method    = HTTP_GET,
+    .handler   = temps_api_get_handler,
     .user_ctx  = NULL
 };
 
@@ -688,9 +802,9 @@ static const httpd_uri_t any =
  */
 esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 {
-    if (strcmp("/hello", req->uri) == 0) 
+    if (strcmp("/sensors", req->uri) == 0) 
     {
-        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "/hello URI is not available");
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "/sensors URI is not available");
         /* Return ESP_OK to keep underlying socket open */
         return ESP_OK;
     } else if (strcmp("/echo", req->uri) == 0) 
@@ -724,16 +838,16 @@ static esp_err_t ctrl_put_handler(httpd_req_t *req)
     if (buf == '0') 
     {
         /* URI handlers can be unregistered using the uri string */
-        ESP_LOGI(TAG, "Unregistering /hello and /echo URIs");
-        httpd_unregister_uri(req->handle, "/hello");
+        ESP_LOGI(TAG, "Unregistering /sensors and /echo URIs");
+        httpd_unregister_uri(req->handle, "/sensors");
         httpd_unregister_uri(req->handle, "/echo");
         /* Register the custom error handler */
         httpd_register_err_handler(req->handle, HTTPD_404_NOT_FOUND, http_404_error_handler);
     }
     else 
     {
-        ESP_LOGI(TAG, "Registering /hello and /echo URIs");
-        httpd_register_uri_handler(req->handle, &hello);
+        ESP_LOGI(TAG, "Registering /sensors and /echo URIs");
+        httpd_register_uri_handler(req->handle, &index_sensors_uri);
         httpd_register_uri_handler(req->handle, &echo);
         /* Unregister custom error handler */
         httpd_register_err_handler(req->handle, HTTPD_404_NOT_FOUND, NULL);
@@ -789,6 +903,7 @@ static httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.stack_size = 8192;
 #if CONFIG_IDF_TARGET_LINUX
     // Setting port as 8001 when building for Linux. Port 80 can be used only by a privileged user in linux.
     // So when a unprivileged user tries to run the application, it throws bind error and the server is not started.
@@ -803,7 +918,9 @@ static httpd_handle_t start_webserver(void)
     if (httpd_start(&server, &config) == ESP_OK) {
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
-        httpd_register_uri_handler(server, &hello);
+        httpd_register_uri_handler(server, &index_root_uri);
+        httpd_register_uri_handler(server, &index_sensors_uri);
+        httpd_register_uri_handler(server, &temps_api_uri);
         httpd_register_uri_handler(server, &echo);
         httpd_register_uri_handler(server, &ctrl);
         httpd_register_uri_handler(server, &any);
@@ -887,7 +1004,8 @@ for (int i = 0; i < MAX31865_NUM_SENSORS; i++)
 {
     ESP_ERROR_CHECK(max31865_configure(i));
 }
-    xTaskCreate(max31865_task, "max31865_task", 4096, NULL, 5, NULL);
+    xTaskCreate(max31865_bank_task, "max31865_bank0", 8192, (void *)(intptr_t)0, 5, NULL);
+    xTaskCreate(max31865_bank_task, "max31865_bank1", 8192, (void *)(intptr_t)1, 5, NULL);
 
 
     /* Start the server for the first time */
