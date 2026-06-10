@@ -1,6 +1,6 @@
 # Стенд проверки температуры на ESP32-S3 + PT100 + MAX31865
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.1-blue)
 ![Target](https://img.shields.io/badge/target-ESP32--S3-orange)
 ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-6.0.1-brightgreen)
 ![Sensors](https://img.shields.io/badge/sensors-32_PT100-green)
